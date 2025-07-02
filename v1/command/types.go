@@ -22,8 +22,14 @@ type Command struct {
 	// Flags are the command-line flags for the command.
 	Flags *flag.FlagSet
 
-	// Run is the function to execute when the command is invoked.
+	// BeforeRun is a optional function that execute before the command is invoked.
+	BeforeRun RunFunc
+
+	// Run is a function that execute when the command is invoked.
 	Run RunFunc
+
+	// AfterRun is a optional function that execute after the command is invoked.
+	AfterRun RunFunc
 
 	// SubCommands are the subcommands of the command.
 	SubCommands []*Command
