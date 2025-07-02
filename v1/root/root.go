@@ -159,6 +159,12 @@ func (rc *RootCommand) Execute() error {
 		finalArgs = args[1:]
 	}
 
+	if cmd.Run == nil {
+		err := fmt.Errorf("no main `Run` function defined for command, can't call any hooks (BeforeRun, Run, AfterRun) '%s'", cmd.Name)
+		cmd.Logger.Error("%v", err)
+		return err
+	}
+
 	if cmd.BeforeRun != nil {
 		if err := cmd.BeforeRun(cmd, parsedRootFlags, finalArgs); err != nil {
 			cmd.Logger.Error("Error running before main command: %v", err)
