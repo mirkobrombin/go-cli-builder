@@ -131,7 +131,7 @@ func (rc *RootCommand) Execute() error {
 
 		for _, requiredFlag := range cmd.RequiredFlags {
 			if _, isSet := setFlags[requiredFlag]; !isSet {
-				necessaryFlags = append(necessaryFlags, "'--"+requiredFlag+"'")
+				necessaryFlags = append(necessaryFlags, "'-"+requiredFlag+"'")
 			}
 		}
 
