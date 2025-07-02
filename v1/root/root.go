@@ -120,6 +120,26 @@ func (rc *RootCommand) Execute() error {
 			return err
 		}
 
+		// Check for required flags
+		setFlags := make(map[string]bool)
+
+		cmd.Flags.Visit(func(f *flag.Flag) {
+			setFlags[f.Name] = true
+		})
+
+		var necessaryFlags []string
+
+		for _, requiredFlag := range cmd.RequiredFlags {
+			if _, isSet := setFlags[requiredFlag]; !isSet {
+				necessaryFlags = append(necessaryFlags, "'--"+requiredFlag+"'")
+			}
+		}
+
+		if len(necessaryFlags) > 0 {
+			cmd.Logger.Error("Missing required flags: %s", strings.Join(necessaryFlags, ", "))
+			return nil
+		}
+
 		// Handle positional arguments
 		remainingArgs = cmd.Flags.Args()
 		argIndex := 0
