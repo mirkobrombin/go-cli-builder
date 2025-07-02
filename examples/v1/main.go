@@ -14,7 +14,7 @@ func main() {
 	rootCmd := root.NewRootCommand("mycli", "mycli [command]", "A simple CLI example", "1.0.0")
 
 	// Add flags to the root command.
-	rootCmd.AddBoolFlag("verbose", "v", "Enable verbose output", false, false, true)
+	rootCmd.AddBoolFlag("verbose", "v", "Enable verbose output", false, false, false)
 
 	// Add subcommands to the root command.
 	rootCmd.AddCommand(commands.NewAddCommand())
