@@ -35,6 +35,7 @@ func NewRootCommand(name, usage, description string, version string) *RootComman
 		},
 		Commands: make(map[string]*command.Command),
 	}
+	// Adds the built-in commands (version and completion)
 	rc.addBuiltInCommands()
 	return rc
 }
@@ -97,6 +98,8 @@ func (rc *RootCommand) Execute() error {
 		}
 	}
 
+	var remainingArgs []string
+
 	// Parse flags if any
 	if cmd.Flags != nil {
 		expandedArgs := make([]string, 0, len(args)-1)
@@ -118,7 +121,7 @@ func (rc *RootCommand) Execute() error {
 		}
 
 		// Handle positional arguments
-		remainingArgs := cmd.Flags.Args()
+		remainingArgs = cmd.Flags.Args()
 		argIndex := 0
 
 		// Handle flags with arguments
@@ -146,10 +149,36 @@ func (rc *RootCommand) Execute() error {
 				}
 			}
 		}
-		return cmd.Run(cmd, parsedRootFlags, remainingArgs)
 	}
 
-	return cmd.Run(cmd, parsedRootFlags, args[1:])
+	var finalArgs []string
+
+	if len(remainingArgs) > 0 {
+		finalArgs = remainingArgs
+	} else {
+		finalArgs = args[1:]
+	}
+
+	if cmd.BeforeRun != nil {
+		if err := cmd.BeforeRun(cmd, parsedRootFlags, finalArgs); err != nil {
+			cmd.Logger.Error("Error running before main command: %v", err)
+			return err
+		}
+	}
+
+	if err := cmd.Run(cmd, parsedRootFlags, finalArgs); err != nil {
+		cmd.Logger.Error("Error running main command: %v", err)
+		return err
+	}
+
+	if cmd.AfterRun != nil {
+		if err := cmd.AfterRun(cmd, parsedRootFlags, finalArgs); err != nil {
+			cmd.Logger.Error("Error running after main command: %v", err)
+			return err
+		}
+	}
+
+	return nil
 }
 
 // PrintHelp prints the help message for the root command.
