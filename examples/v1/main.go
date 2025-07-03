@@ -21,6 +21,8 @@ func main() {
 	rootCmd.AddCommand(commands.NewRemoveCommand())
 	rootCmd.AddCommand(commands.NewListCommand())
 
+	rootCmd.AddAlias("ra", "remove", "all")
+
 	// Execute the root command and handle any errors.
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

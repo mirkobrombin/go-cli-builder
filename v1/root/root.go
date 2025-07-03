@@ -78,35 +78,51 @@ func (rc *RootCommand) Execute() error {
 	}
 
 	args := rc.Flags.Args()
-	if len(args) < 1 {
+	if len(args) == 0 {
 		rc.PrintHelp()
 		return nil
 	}
 
-	cmdName := args[0]
-	cmd, ok := rc.Commands[cmdName]
-	if !ok {
-		rc.PrintHelp()
-		return nil
-	}
+	var cmd *command.Command
+	currentLevelCmds := rc.SubCommands
+	var commandsTraversed int
+	// var hasSubCommands bool
 
-	// Handle subcommand aliases
-	parsedRootFlags := &command.RootFlags{FlagSet: rc.Flags}
-	if len(args) >= 2 {
-		subCmdName := args[1]
-		if aliasCmd, ok := rc.Commands[cmdName]; ok {
-			if aliasCmd.Description == fmt.Sprintf("Alias for '%s %s <branch>'", cmdName, subCmdName) {
-				if subCmd, ok := rc.Commands[subCmdName]; ok {
-					return subCmd.Run(subCmd, parsedRootFlags, os.Args[3:])
-				}
-				return fmt.Errorf("subcommand '%s' not found", subCmdName)
+	// Find the command to execute by traversing the command tree
+	for i, arg := range args {
+		var foundCmd *command.Command
+		for _, c := range currentLevelCmds {
+			if c.Name == arg {
+				foundCmd = c
+				break
 			}
+		}
+
+		if foundCmd != nil {
+			cmd = foundCmd
+			// hasSubCommands = len(cmd.SubCommands) > 0
+			currentLevelCmds = cmd.SubCommands
+			commandsTraversed = i + 1
+		} else {
+			break
 		}
 	}
 
-	// Handle help flag, we also avoid it to be parsed by the subcommand
-	// as a positional argument
-	for _, arg := range args[1:] {
+	if cmd == nil {
+		rc.PrintHelp()
+		return nil
+	}
+
+	cmdArgs := args[commandsTraversed:]
+
+	// If the command has subcommands and no arguments are provided, show help
+	if len(cmd.SubCommands) > 0 && len(cmdArgs) == 0 {
+		cmd.PrintCommandHelp()
+		return nil
+	}
+
+	// Handle help flag for the found subcommand
+	for _, arg := range cmdArgs {
 		if arg == "-h" || arg == "--help" {
 			cmd.PrintCommandHelp()
 			return nil
@@ -115,10 +131,10 @@ func (rc *RootCommand) Execute() error {
 
 	var remainingArgs []string
 
-	// Parse flags if any
+	// Parse flags for the subcommand
 	if cmd.Flags != nil {
-		expandedArgs := make([]string, 0, len(args)-1)
-		for _, arg := range args[1:] {
+		expandedArgs := make([]string, 0, len(cmdArgs))
+		for _, arg := range cmdArgs {
 			if strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") && len(arg) == 2 {
 				shortName := strings.TrimPrefix(arg, "-")
 				if longName, ok := cmd.ShortFlagMap[shortName]; ok {
@@ -135,8 +151,7 @@ func (rc *RootCommand) Execute() error {
 			return err
 		}
 
-		// Check for required flags
-
+		// Check for required flags on the subcommand
 		cmd.Flags.Visit(func(f *flag.Flag) {
 			setFlags[f.Name] = true
 		})
@@ -147,48 +162,17 @@ func (rc *RootCommand) Execute() error {
 			}
 		}
 
-		if len(requiredFlags) > 0 {
-			cmd.Logger.Error("Missing required flags: %s", strings.Join(requiredFlags, ", "))
-			return nil
-		}
-
-		// Handle positional arguments
 		remainingArgs = cmd.Flags.Args()
-		argIndex := 0
-
-		// Handle flags with arguments
-		for _, arg := range remainingArgs {
-			if strings.HasPrefix(arg, "-") {
-				flagName := strings.TrimPrefix(arg, "-")
-				if strings.HasPrefix(flagName, "-") { // Long flag
-					flagName = strings.TrimPrefix(flagName, "-")
-				} else if longName, ok := cmd.ShortFlagMap[flagName]; ok { // Short flag
-					flagName = longName
-				}
-				if allowArg, ok := cmd.ArgFlags[flagName]; ok && allowArg {
-					if argIndex+1 < len(remainingArgs) {
-						cmd.Flags.Set(flagName, remainingArgs[argIndex+1])
-						argIndex += 2
-					}
-				}
-			} else {
-				// Handle flags without arguments
-				for flagName, allowArg := range cmd.ArgFlags {
-					if allowArg && argIndex < len(remainingArgs) {
-						cmd.Flags.Set(flagName, remainingArgs[argIndex])
-						argIndex++
-					}
-				}
-			}
-		}
+	} else {
+		remainingArgs = cmdArgs
 	}
 
-	var finalArgs []string
-
-	if len(remainingArgs) > 0 {
-		finalArgs = remainingArgs
-	} else {
-		finalArgs = args[1:]
+	// Check for any missing required flags (both root and subcommand)
+	// add a subcommand to a subcommand
+	if len(requiredFlags) > 0 {
+		cmd.Logger.Error("Missing required flags: %s", strings.Join(requiredFlags, ", "))
+		cmd.PrintCommandHelp()
+		return nil
 	}
 
 	if cmd.Run == nil {
@@ -197,20 +181,22 @@ func (rc *RootCommand) Execute() error {
 		return err
 	}
 
+	parsedRootFlags := &command.RootFlags{FlagSet: rc.Flags}
+
 	if cmd.BeforeRun != nil {
-		if err := cmd.BeforeRun(cmd, parsedRootFlags, finalArgs); err != nil {
+		if err := cmd.BeforeRun(cmd, parsedRootFlags, remainingArgs); err != nil {
 			cmd.Logger.Error("Error running before main command: %v", err)
 			return err
 		}
 	}
 
-	if err := cmd.Run(cmd, parsedRootFlags, finalArgs); err != nil {
+	if err := cmd.Run(cmd, parsedRootFlags, remainingArgs); err != nil {
 		cmd.Logger.Error("Error running main command: %v", err)
 		return err
 	}
 
 	if cmd.AfterRun != nil {
-		if err := cmd.AfterRun(cmd, parsedRootFlags, finalArgs); err != nil {
+		if err := cmd.AfterRun(cmd, parsedRootFlags, remainingArgs); err != nil {
 			cmd.Logger.Error("Error running after main command: %v", err)
 			return err
 		}
@@ -245,49 +231,66 @@ func (rc *RootCommand) PrintHelp() {
 	}
 }
 
+// AddAlias adds an alias for a command or subcommand chain of any depth.
+//
+// Parameters:
+//   - alias: The name of the alias.
+//   - targets: The target command and optional subcommands in sequence (e.g., "cmd", "subcmd", "subsubcmd").
+func (rc *RootCommand) AddAlias(alias string, targets ...string) {
+	if len(targets) == 0 {
+		fmt.Fprintf(os.Stderr, "No target command specified for alias '%s'\n", alias)
+		return
+	}
+
+	// Check if the first command exists
+	if _, ok := rc.Commands[targets[0]]; !ok {
+		fmt.Fprintf(os.Stderr, "Target command '%s' not found for alias '%s'\n", targets[0], alias)
+		return
+	}
+
+	// Build description based on targets depth
+	var description string
+	if len(targets) == 1 {
+		description = fmt.Sprintf("Alias for '%s'", targets[0])
+	} else {
+		description = fmt.Sprintf("Alias for '%s'", strings.Join(targets, " "))
+	}
+
+	// Create alias command
+	aliasCmd := &command.Command{
+		Name:        alias,
+		Usage:       alias,
+		Description: description,
+		Run: func(cmd *command.Command, rootFlags *command.RootFlags, args []string) error {
+			newArgs := append([]string{}, targets...)
+			newArgs = append(newArgs, args...)
+			return utils.Reexec(newArgs)
+		},
+	}
+
+	aliasCmd.SetupLogger(alias)
+	rc.AddCommand(aliasCmd)
+}
+
 // AddAliasSubCommand adds an alias for a subcommand of a command.
+// Deprecated: Use AddAlias instead. This function exists for backward compatibility.
 //
 // Parameters:
 //   - alias: The name of the alias.
 //   - targetCmd: The name of the target command.
 //   - targetSubCmd: The name of the target subcommand.
-func (rc *RootCommand) AddAliasSubCommand(alias, targetCmd, targetSubCmd string) {
-	if _, ok := rc.Commands[targetCmd]; ok {
-		aliasCmd := &command.Command{
-			Name:        alias,
-			Usage:       fmt.Sprintf("%s <branch>", alias),
-			Description: fmt.Sprintf("Alias for '%s %s <branch>'", targetCmd, targetSubCmd),
-			Run: func(cmd *command.Command, rootFlags *command.RootFlags, args []string) error {
-				newArgs := append([]string{targetCmd, targetSubCmd}, args...)
-				return utils.Reexec(newArgs)
-			},
-		}
-		aliasCmd.SetupLogger(alias)
-		rc.AddCommand(aliasCmd)
-	} else {
-		fmt.Fprintf(os.Stderr, "Target command '%s' not found for alias '%s'\n", targetCmd, alias)
-	}
+//   - targets: Optional additional targets for deeper nesting.
+func (rc *RootCommand) AddAliasSubCommand(alias, targetCmd, targetSubCmd string, targets ...string) {
+	allTargets := append([]string{targetCmd, targetSubCmd}, targets...)
+	rc.AddAlias(alias, allTargets...)
 }
 
 // AddAliasCommand adds an alias for a command.
+// Deprecated: Use AddAlias instead. This function exists for backward compatibility.
 //
 // Parameters:
 //   - alias: The name of the alias.
 //   - targetCmd: The name of the target command.
 func (rc *RootCommand) AddAliasCommand(alias, targetCmd string) {
-	if _, ok := rc.Commands[targetCmd]; ok {
-		aliasCmd := &command.Command{
-			Name:        alias,
-			Usage:       alias,
-			Description: fmt.Sprintf("Alias for '%s'", targetCmd),
-			Run: func(cmd *command.Command, rootFlags *command.RootFlags, args []string) error {
-				newArgs := append([]string{targetCmd}, args...)
-				return utils.Reexec(newArgs)
-			},
-		}
-		aliasCmd.SetupLogger(alias)
-		rc.AddCommand(aliasCmd)
-	} else {
-		fmt.Fprintf(os.Stderr, "Target command '%s' not found for alias '%s'\n", targetCmd, alias)
-	}
+	rc.AddAlias(alias, targetCmd)
 }
