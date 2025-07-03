@@ -86,7 +86,6 @@ func (rc *RootCommand) Execute() error {
 	var cmd *command.Command
 	currentLevelCmds := rc.SubCommands
 	var commandsTraversed int
-	// var hasSubCommands bool
 
 	// Find the command to execute by traversing the command tree
 	for i, arg := range args {
@@ -100,7 +99,6 @@ func (rc *RootCommand) Execute() error {
 
 		if foundCmd != nil {
 			cmd = foundCmd
-			// hasSubCommands = len(cmd.SubCommands) > 0
 			currentLevelCmds = cmd.SubCommands
 			commandsTraversed = i + 1
 		} else {
