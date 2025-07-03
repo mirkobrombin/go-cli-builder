@@ -18,6 +18,7 @@ func NewRemoveCommand() *command.Command {
 		Description: "Remove an item from the list",
 		Run:         runRemove,
 	}
+
 	cmd.AddFlag("name", "n", "Name of the item to add", "", true, false)
 
 	cmd.AddCommand(newDeleteAllCommand())
