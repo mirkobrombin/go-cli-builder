@@ -18,8 +18,54 @@ func NewRemoveCommand() *command.Command {
 		Description: "Remove an item from the list",
 		Run:         runRemove,
 	}
-	cmd.AddFlag("name", "n", "Name of the item to add", "", true, true)
+
+	cmd.AddFlag("name", "n", "Name of the item to add", "", true, false)
+
+	cmd.AddCommand(newDeleteAllCommand())
 	return cmd
+}
+
+// NewDeleteAllCommand creates a new 'delete all' command.
+//
+// Returns:
+//   - A pointer to a new command.Command representing the 'delete all' command.
+func newDeleteAllCommand() *command.Command {
+	cmd := &command.Command{
+		Name:        "all",
+		Usage:       "all",
+		Description: "Delete all items from the list",
+		Run:         runDeleteAll,
+	}
+	cmd.AddBoolFlag("confirm", "c", "Confirm deletion", false, false, true)
+	return cmd
+}
+
+// runDeleteAll executes the 'delete all' command logic.
+// It loads data from the JSON file, removes all items, and saves the updated data.
+//
+// Parameters:
+//   - cmd: A pointer to the command.Command that is being executed.
+//   - rootFlags: A pointer to the command.RootFlags containing root-level flags.
+//   - args: A slice of strings representing the command-line arguments.
+//
+// Returns:
+//   - An error if the command execution fails, or nil if successful.
+func runDeleteAll(cmd *command.Command, rootFlags *command.RootFlags, args []string) error {
+	data, err := core.LoadData()
+	if err != nil {
+		cmd.Logger.Error("Error loading data")
+		return err
+	}
+
+	data.Items = []string{}
+
+	if err := core.SaveData(data); err != nil {
+		cmd.Logger.Error("Error deleting all items")
+		return err
+	}
+
+	cmd.Logger.Success("All items deleted")
+	return nil
 }
 
 // runRemove executes the 'remove' command logic.

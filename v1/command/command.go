@@ -9,6 +9,15 @@ import (
 	"github.com/mirkobrombin/go-cli-builder/v1/log"
 )
 
+// AddCommand adds a subcommand to a command.
+//
+// Parameters:
+//   - cmd: The subcommand to add.
+func (c *Command) AddCommand(cmd *Command) {
+	cmd.Logger = &log.DefaultLogger{ComponentName: cmd.Name}
+	c.SubCommands = append(c.SubCommands, cmd)
+}
+
 // AddFlag adds a string flag to the command.
 //
 // Parameters:
@@ -206,6 +215,12 @@ func (c *Command) PrintCommandHelp() {
 	if c.Flags != nil {
 		fmt.Println("Flags:")
 		c.Flags.PrintDefaults()
+	}
+	if c.SubCommands != nil {
+		fmt.Println("Subcommands:")
+		for _, subCmd := range c.SubCommands {
+			fmt.Printf("  %s: %s\n", subCmd.Name, subCmd.Description)
+		}
 	}
 }
 
