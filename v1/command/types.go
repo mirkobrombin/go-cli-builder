@@ -22,6 +22,9 @@ type Command struct {
 	// Flags are the command-line flags for the command.
 	Flags *flag.FlagSet
 
+	// RequiredFlags stores the names of flags that are mandatory.
+	RequiredFlags []string
+
 	// BeforeRun is a optional function that execute before the command is invoked.
 	BeforeRun RunFunc
 

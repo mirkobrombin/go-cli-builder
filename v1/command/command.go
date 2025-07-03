@@ -18,7 +18,7 @@ import (
 //
 // Returns:
 //   - A pointer to the string value of the flag.
-func (c *Command) AddFlag(name, shortName, usage, defaultValue string, allowArg bool) *string {
+func (c *Command) AddFlag(name, shortName, usage, defaultValue string, allowArg, required bool) *string {
 	if c.Flags == nil {
 		c.Flags = flag.NewFlagSet(c.Name, flag.ExitOnError)
 		c.ArgFlags = make(map[string]bool)
@@ -29,6 +29,9 @@ func (c *Command) AddFlag(name, shortName, usage, defaultValue string, allowArg 
 	c.ArgFlags[name] = allowArg
 	if shortName != "" {
 		c.ShortFlagMap[shortName] = name
+	}
+	if required {
+		c.RequiredFlags = append(c.RequiredFlags, name)
 	}
 	return c.Flags.String(name, defaultValue, usage)
 }
@@ -42,7 +45,7 @@ func (c *Command) AddFlag(name, shortName, usage, defaultValue string, allowArg 
 //
 // Returns:
 //   - A pointer to the integer value of the flag.
-func (c *Command) AddIntFlag(name, shortName, usage string, defaultValue int, allowArg bool) *int {
+func (c *Command) AddIntFlag(name, shortName, usage string, defaultValue int, allowArg, required bool) *int {
 	if c.Flags == nil {
 		c.Flags = flag.NewFlagSet(c.Name, flag.ExitOnError)
 		c.ArgFlags = make(map[string]bool)
@@ -53,6 +56,9 @@ func (c *Command) AddIntFlag(name, shortName, usage string, defaultValue int, al
 	c.ArgFlags[name] = allowArg
 	if shortName != "" {
 		c.ShortFlagMap[shortName] = name
+	}
+	if required {
+		c.RequiredFlags = append(c.RequiredFlags, name)
 	}
 	return c.Flags.Int(name, defaultValue, usage)
 }
@@ -66,7 +72,7 @@ func (c *Command) AddIntFlag(name, shortName, usage string, defaultValue int, al
 //
 // Returns:
 //   - A pointer to the boolean value of the flag.
-func (c *Command) AddBoolFlag(name, shortName, usage string, defaultValue, allowArg bool) *bool {
+func (c *Command) AddBoolFlag(name, shortName, usage string, defaultValue, allowArg, required bool) *bool {
 	if c.Flags == nil {
 		c.Flags = flag.NewFlagSet(c.Name, flag.ExitOnError)
 		c.ArgFlags = make(map[string]bool)
@@ -78,6 +84,10 @@ func (c *Command) AddBoolFlag(name, shortName, usage string, defaultValue, allow
 	if shortName != "" {
 		c.ShortFlagMap[shortName] = name
 	}
+	if required {
+		c.RequiredFlags = append(c.RequiredFlags, name)
+	}
+
 	return c.Flags.Bool(name, defaultValue, usage)
 }
 

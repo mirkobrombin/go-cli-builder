@@ -55,10 +55,25 @@ func (rc *RootCommand) AddCommand(cmd *command.Command) {
 // Returns:
 //   - An error, if an error occurs during execution.
 func (rc *RootCommand) Execute() error {
+	// Required flags check
+	setFlags := make(map[string]bool)
+	var requiredFlags []string
+
 	// Parse root flags
 	if len(os.Args) > 1 {
 		if err := rc.Flags.Parse(os.Args[1:]); err != nil {
 			return err
+		}
+
+		// Check for required flags on the root command
+		rc.Flags.Visit(func(f *flag.Flag) {
+			setFlags[f.Name] = true
+		})
+
+		for _, requiredFlag := range rc.RequiredFlags {
+			if _, isSet := setFlags[requiredFlag]; !isSet {
+				requiredFlags = append(requiredFlags, "'-"+requiredFlag+"'")
+			}
 		}
 	}
 
@@ -118,6 +133,23 @@ func (rc *RootCommand) Execute() error {
 
 		if err := cmd.Flags.Parse(expandedArgs); err != nil {
 			return err
+		}
+
+		// Check for required flags
+
+		cmd.Flags.Visit(func(f *flag.Flag) {
+			setFlags[f.Name] = true
+		})
+
+		for _, requiredFlag := range cmd.RequiredFlags {
+			if _, isSet := setFlags[requiredFlag]; !isSet {
+				requiredFlags = append(requiredFlags, "'-"+requiredFlag+"'")
+			}
+		}
+
+		if len(requiredFlags) > 0 {
+			cmd.Logger.Error("Missing required flags: %s", strings.Join(requiredFlags, ", "))
+			return nil
 		}
 
 		// Handle positional arguments

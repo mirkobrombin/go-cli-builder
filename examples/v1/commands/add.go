@@ -20,7 +20,7 @@ func NewAddCommand() *command.Command {
 		AfterRun:    runAfterAdd,
 		Run:         runAdd,
 	}
-	cmd.AddFlag("name", "n", "Name of the item to add", "", true)
+	cmd.AddFlag("name", "n", "Name of the item to add", "", true, true)
 	return cmd
 }
 
