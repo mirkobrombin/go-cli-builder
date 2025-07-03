@@ -57,7 +57,7 @@ func (rc *RootCommand) AddCommand(cmd *command.Command) {
 func (rc *RootCommand) Execute() error {
 	// Required flags check
 	setFlags := make(map[string]bool)
-	var necessaryFlags []string
+	var requiredFlags []string
 
 	// Parse root flags
 	if len(os.Args) > 1 {
@@ -72,7 +72,7 @@ func (rc *RootCommand) Execute() error {
 
 		for _, requiredFlag := range rc.RequiredFlags {
 			if _, isSet := setFlags[requiredFlag]; !isSet {
-				necessaryFlags = append(necessaryFlags, "'-"+requiredFlag+"'")
+				requiredFlags = append(requiredFlags, "'-"+requiredFlag+"'")
 			}
 		}
 	}
@@ -143,12 +143,12 @@ func (rc *RootCommand) Execute() error {
 
 		for _, requiredFlag := range cmd.RequiredFlags {
 			if _, isSet := setFlags[requiredFlag]; !isSet {
-				necessaryFlags = append(necessaryFlags, "'-"+requiredFlag+"'")
+				requiredFlags = append(requiredFlags, "'-"+requiredFlag+"'")
 			}
 		}
 
-		if len(necessaryFlags) > 0 {
-			cmd.Logger.Error("Missing required flags: %s", strings.Join(necessaryFlags, ", "))
+		if len(requiredFlags) > 0 {
+			cmd.Logger.Error("Missing required flags: %s", strings.Join(requiredFlags, ", "))
 			return nil
 		}
 
