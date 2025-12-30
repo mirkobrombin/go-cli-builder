@@ -36,7 +36,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mirkobrombin/go-cli-builder/v2/cli"
+	"github.com/mirkobrombin/go-cli-builder/v2/pkg/cli"
 )
 
 // Define your root CLI struct

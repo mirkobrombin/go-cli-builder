@@ -1,4 +1,4 @@
-module github.com/mirkobrombin/go-cli-builder
+module github.com/mirkobrombin/go-cli-builder/v2
 
 go 1.23.4
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mirkobrombin/go-cli-builder/v2/cli"
+	"github.com/mirkobrombin/go-cli-builder/v2/pkg/cli"
 )
 
 // CLI is the root application struct.

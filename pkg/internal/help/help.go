@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mirkobrombin/go-cli-builder/v2/internal/parser"
+	"github.com/mirkobrombin/go-cli-builder/v2/pkg/internal/parser"
 )
 
 // GenerateHelp generates a formatted help string for a command node.
