@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mirkobrombin/go-cli-builder/v2/pkg/internal/help"
-	"github.com/mirkobrombin/go-cli-builder/v2/pkg/internal/parser"
-	"github.com/mirkobrombin/go-cli-builder/v2/pkg/internal/resolver"
+	"github.com/mirkobrombin/go-cli-builder/v2/pkg/help"
 	"github.com/mirkobrombin/go-cli-builder/v2/pkg/log"
+	"github.com/mirkobrombin/go-cli-builder/v2/pkg/parser"
+	"github.com/mirkobrombin/go-cli-builder/v2/pkg/resolver"
 	"github.com/mirkobrombin/go-struct-flags/v1/binder"
 )
 
