@@ -13,7 +13,7 @@ import (
 	"github.com/mirkobrombin/go-cli-builder/v2/pkg/log"
 	"github.com/mirkobrombin/go-cli-builder/v2/pkg/parser"
 	"github.com/mirkobrombin/go-cli-builder/v2/pkg/resolver"
-	"github.com/mirkobrombin/go-struct-flags/v1/binder"
+	"github.com/mirkobrombin/go-struct-flags/v2/pkg/binder"
 )
 
 // applyBindings binds flags and args to the struct fields using the external binder library.
@@ -23,7 +23,7 @@ func applyBindings(node *parser.CommandNode, flags map[string]string, args []str
 		val = val.Addr()
 	}
 
-	b, err := binder.NewBinder(val.Interface(), "", false)
+	b, err := binder.NewBinder(val.Interface())
 	if err != nil {
 		return err
 	}
