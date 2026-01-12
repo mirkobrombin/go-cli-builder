@@ -41,6 +41,36 @@ func parseStruct(node *CommandNode, val reflect.Value) error {
 		}
 
 		if cmdTag, ok := field.Tag.Lookup("cmd"); ok {
+			if field.Type.Kind() == reflect.Map {
+				iter := fieldVal.MapRange()
+				for iter.Next() {
+					key := iter.Key()
+					val := iter.Value()
+
+					if key.Kind() != reflect.String {
+						continue
+					}
+
+					cmdName := key.String()
+					startVal := val
+
+					if startVal.Kind() == reflect.Ptr {
+						if startVal.IsNil() {
+							continue
+						}
+						startVal = startVal.Elem()
+					}
+
+					childNode := NewCommandNode(cmdName, "", startVal)
+					node.Children[cmdName] = childNode
+
+					if err := parseStruct(childNode, startVal); err != nil {
+						return err
+					}
+				}
+				continue
+			}
+
 			startVal := fieldVal
 			if startVal.Kind() == reflect.Ptr {
 				if startVal.IsNil() {

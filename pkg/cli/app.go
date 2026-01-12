@@ -95,6 +95,28 @@ func applyBindings(node *parser.CommandNode, flags map[string]string, args []str
 	return bindArgs(node, args)
 }
 
+// App represents a CLI application.
+type App struct {
+	RootNode *parser.CommandNode
+}
+
+// New creates a new App from a root struct.
+func New(root any) (*App, error) {
+	rootNode, err := parser.Parse(root)
+	if err != nil {
+		return nil, fmt.Errorf("parse error: %w", err)
+	}
+	return &App{RootNode: rootNode}, nil
+}
+
+// AddCommand adds a dynamic command to the application.
+func (a *App) AddCommand(name string, cmd *parser.CommandNode) {
+	if a.RootNode.Children == nil {
+		a.RootNode.Children = make(map[string]*parser.CommandNode)
+	}
+	a.RootNode.Children[name] = cmd
+}
+
 // Run executes the application based on the provided root struct.
 // It parses the CLI arguments, resolves commands, binds flags, infuses dependencies, and runs lifecycle hooks.
 //
@@ -107,20 +129,24 @@ func applyBindings(node *parser.CommandNode, flags map[string]string, args []str
 //		}
 //	}
 func Run(root any) error {
-	rootNode, err := parser.Parse(root)
+	app, err := New(root)
 	if err != nil {
-		return fmt.Errorf("parse error: %w", err)
+		return err
 	}
+	return app.Run()
+}
 
+// Run executes the application.
+func (a *App) Run() error {
 	args := os.Args[1:]
 
-	targetNode, allFlags, err := resolveCommand(rootNode, args)
+	targetNode, allFlags, err := resolveCommand(a.RootNode, args)
 	if err != nil {
-		fmt.Println(help.GenerateHelp(rootNode))
+		fmt.Println(help.GenerateHelp(a.RootNode))
 		return err
 	}
 
-	path := getPathToNode(rootNode, targetNode)
+	path := getPathToNode(a.RootNode, targetNode)
 	effectiveFlags := make(map[string]*parser.FlagMetadata)
 
 	for _, node := range path {
