@@ -8,14 +8,24 @@ import (
 	"github.com/mirkobrombin/go-cli-builder/v2/pkg/parser"
 )
 
+// Translator is a function that translates a key.
+type Translator func(string) string
+
 // GenerateHelp generates a formatted help string for a command node.
 //
 // Example:
 //
-//	helpText := help.GenerateHelp(rootNode)
+//	helpText := help.GenerateHelp(rootNode, nil)
 //	fmt.Println(helpText)
-func GenerateHelp(node *parser.CommandNode) string {
+func GenerateHelp(node *parser.CommandNode, tr Translator) string {
 	var sb strings.Builder
+
+	t := func(s string) string {
+		if tr != nil && strings.HasPrefix(s, "pr:") {
+			return tr(strings.TrimPrefix(s, "pr:"))
+		}
+		return s
+	}
 
 	fmt.Fprintf(&sb, "Usage: %s [flags]", node.Name)
 	if len(node.Children) > 0 {
@@ -24,16 +34,16 @@ func GenerateHelp(node *parser.CommandNode) string {
 	if len(node.Args) > 0 {
 		for _, arg := range node.Args {
 			if arg.IsGreedy {
-				fmt.Fprintf(&sb, " [%s...]", arg.Description)
+				fmt.Fprintf(&sb, " [%s...]", t(arg.Description))
 			} else {
-				fmt.Fprintf(&sb, " [%s]", arg.Description)
+				fmt.Fprintf(&sb, " [%s]", t(arg.Description))
 			}
 		}
 	}
 	fmt.Fprint(&sb, "\n\n")
 
 	if node.Description != "" {
-		fmt.Fprintf(&sb, "%s\n\n", node.Description)
+		fmt.Fprintf(&sb, "%s\n\n", t(node.Description))
 	}
 
 	if len(node.Children) > 0 {
@@ -52,7 +62,7 @@ func GenerateHelp(node *parser.CommandNode) string {
 			if len(child.Aliases) > 0 {
 				aliases = fmt.Sprintf(" (aliases: %s)", strings.Join(child.Aliases, ", "))
 			}
-			fmt.Fprintf(&sb, "  %-15s %s%s\n", name, child.Description, aliases)
+			fmt.Fprintf(&sb, "  %-15s %s%s\n", name, t(child.Description), aliases)
 		}
 		fmt.Fprint(&sb, "\n")
 	}
@@ -89,7 +99,7 @@ func GenerateHelp(node *parser.CommandNode) string {
 				detailStr = fmt.Sprintf(" (%s)", strings.Join(details, ", "))
 			}
 
-			fmt.Fprintf(&sb, "  %s--%-12s %s%s\n", short, name, meta.Description, detailStr)
+			fmt.Fprintf(&sb, "  %s--%-12s %s%s\n", short, name, t(meta.Description), detailStr)
 		}
 	}
 

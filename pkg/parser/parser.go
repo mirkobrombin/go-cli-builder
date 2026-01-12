@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 )
@@ -9,72 +10,116 @@ import (
 //
 // Example:
 //
-//	type CLI struct {
-//		Serve ServeCmd `cmd:"serve"`
-//	}
-//	node, err := parser.Parse(&CLI{})
-func Parse(root any) (*CommandNode, error) {
+//	root := &RootCmd{}
+//	node, err := parser.Parse("apx", root)
+func Parse(name string, root any) (*CommandNode, error) {
 	val := reflect.ValueOf(root)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
 	}
 
-	node := NewCommandNode("root", "", val)
+	node := NewCommandNode(name, "", val)
 
-	if err := parseStruct(node, val); err != nil {
+	if err := ParseStruct(node, val); err != nil {
 		return nil, err
 	}
 
 	return node, nil
 }
 
-// parseStruct recursively parses the struct fields to build the command tree.
-func parseStruct(node *CommandNode, val reflect.Value) error {
-	typ := val.Type()
+// ParseStruct recursively parses the struct fields to build the command tree.
+//
+// Example:
+//
+//	node := parser.NewCommandNode("init", "Initialize project", reflect.ValueOf(&InitCmd{}))
+//	val := reflect.ValueOf(&InitCmd{})
+//	err := parser.ParseStruct(node, val)
+func ParseStruct(node *CommandNode, val reflect.Value) error {
+	v := val
+	for v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return nil
+		}
+		v = v.Elem()
+	}
 
-	for i := 0; i < val.NumField(); i++ {
+	if v.Kind() != reflect.Struct {
+		return nil
+	}
+
+	typ := v.Type()
+
+	for i := 0; i < v.NumField(); i++ {
 		field := typ.Field(i)
-		fieldVal := val.Field(i)
+		fieldVal := v.Field(i)
 
 		if field.Tag.Get("internal") == "ignore" {
 			continue
 		}
 
-		if cmdTag, ok := field.Tag.Lookup("cmd"); ok {
-			if field.Type.Kind() == reflect.Map {
-				iter := fieldVal.MapRange()
-				for iter.Next() {
-					key := iter.Key()
-					val := iter.Value()
+		cmdTag, ok := field.Tag.Lookup("cmd")
 
-					if key.Kind() != reflect.String {
-						continue
-					}
-
-					cmdName := key.String()
-					startVal := val
-
-					if startVal.Kind() == reflect.Ptr {
-						if startVal.IsNil() {
-							continue
-						}
-						startVal = startVal.Elem()
-					}
-
-					childNode := NewCommandNode(cmdName, "", startVal)
-					node.Children[cmdName] = childNode
-
-					if err := parseStruct(childNode, startVal); err != nil {
-						return err
-					}
+		// Pre-process for map merging
+		if ok && cmdTag == "*" {
+			fVal := fieldVal
+			for fVal.Kind() == reflect.Ptr {
+				if fVal.IsNil() {
+					break
 				}
-				continue
+				fVal = fVal.Elem()
 			}
 
+			if fVal.Kind() == reflect.Map {
+				if !fVal.IsNil() {
+					if node.Children == nil {
+						node.Children = make(map[string]*CommandNode)
+					}
+
+					iter := fVal.MapRange()
+					for iter.Next() {
+						cmdName := iter.Key().String()
+						val := iter.Value()
+
+						// Unwrap pointer to reach the command struct
+						startVal := val
+						for startVal.Kind() == reflect.Ptr {
+							if startVal.IsNil() {
+								break
+							}
+							startVal = startVal.Elem()
+						}
+
+						if startVal.Kind() == reflect.Ptr && startVal.IsNil() {
+							continue
+						}
+
+						helpPrefix := field.Tag.Get("help")
+						description := ""
+						if helpPrefix != "" {
+							description = fmt.Sprintf("pr:%s.%s", helpPrefix, cmdName)
+						}
+
+						childNode := NewCommandNode(cmdName, description, startVal)
+						node.Children[cmdName] = childNode
+
+						if err := ParseStruct(childNode, startVal); err != nil {
+							return err
+						}
+					}
+				}
+			}
+			continue
+		}
+
+		if ok {
 			startVal := fieldVal
-			if startVal.Kind() == reflect.Ptr {
+			for startVal.Kind() == reflect.Ptr {
 				if startVal.IsNil() {
-					startVal.Set(reflect.New(startVal.Type().Elem()))
+					if startVal.CanSet() {
+						startVal.Set(reflect.New(startVal.Type().Elem()))
+					} else {
+						break
+					}
 				}
 				startVal = startVal.Elem()
 			}
@@ -89,9 +134,9 @@ func parseStruct(node *CommandNode, val reflect.Value) error {
 				aliases = strings.Split(aliasTag, ",")
 			}
 
-			help := field.Tag.Get("help")
+			description := field.Tag.Get("help")
 
-			childNode := NewCommandNode(cmdName, help, startVal)
+			childNode := NewCommandNode(cmdName, description, startVal)
 			childNode.Aliases = aliases
 
 			node.Children[cmdName] = childNode
@@ -99,7 +144,7 @@ func parseStruct(node *CommandNode, val reflect.Value) error {
 				node.Children[alias] = childNode
 			}
 
-			if err := parseStruct(childNode, startVal); err != nil {
+			if err := ParseStruct(childNode, startVal); err != nil {
 				return err
 			}
 			continue

@@ -97,16 +97,40 @@ func applyBindings(node *parser.CommandNode, flags map[string]string, args []str
 
 // App represents a CLI application.
 type App struct {
-	RootNode *parser.CommandNode
+	RootNode   *parser.CommandNode
+	Translator help.Translator
 }
 
 // New creates a new App from a root struct.
 func New(root any) (*App, error) {
-	rootNode, err := parser.Parse(root)
+	rootNode, err := parser.Parse("root", root)
 	if err != nil {
 		return nil, fmt.Errorf("parse error: %w", err)
 	}
 	return &App{RootNode: rootNode}, nil
+}
+
+// SetName sets the name of the root command.
+func (a *App) SetName(name string) {
+	if a.RootNode != nil {
+		a.RootNode.Name = name
+	}
+}
+
+// Reload re-parses the root struct to pick up dynamic changes (e.g. map entries).
+//
+// Example:
+//
+//	err := app.Reload()
+func (a *App) Reload() error {
+	if a.RootNode == nil {
+		return nil
+	}
+	val := a.RootNode.Value
+	if val.Kind() != reflect.Ptr && val.CanAddr() {
+		val = val.Addr()
+	}
+	return parser.ParseStruct(a.RootNode, val)
 }
 
 // AddCommand adds a dynamic command to the application.
@@ -115,6 +139,11 @@ func (a *App) AddCommand(name string, cmd *parser.CommandNode) {
 		a.RootNode.Children = make(map[string]*parser.CommandNode)
 	}
 	a.RootNode.Children[name] = cmd
+}
+
+// SetTranslator sets the translator for the application.
+func (a *App) SetTranslator(tr help.Translator) {
+	a.Translator = tr
 }
 
 // Run executes the application based on the provided root struct.
@@ -142,7 +171,7 @@ func (a *App) Run() error {
 
 	targetNode, allFlags, err := resolveCommand(a.RootNode, args)
 	if err != nil {
-		fmt.Println(help.GenerateHelp(a.RootNode))
+		fmt.Println(help.GenerateHelp(a.RootNode, a.Translator))
 		return err
 	}
 
@@ -155,7 +184,7 @@ func (a *App) Run() error {
 
 	for _, arg := range allFlags {
 		if arg == "-h" || arg == "--help" {
-			fmt.Print(help.GenerateHelp(targetNode))
+			fmt.Print(help.GenerateHelp(targetNode, a.Translator))
 			return nil
 		}
 	}
@@ -163,13 +192,13 @@ func (a *App) Run() error {
 	parsedFlags, positionalArgs, err := parseArgs(allFlags, effectiveFlags)
 	if err != nil {
 		fmt.Printf("Error: %v\n\n", err)
-		fmt.Print(help.GenerateHelp(targetNode))
+		fmt.Print(help.GenerateHelp(targetNode, a.Translator))
 		return err
 	}
 
 	if err := applyBindings(targetNode, parsedFlags, positionalArgs, effectiveFlags); err != nil {
 		fmt.Printf("Error: %v\n\n", err)
-		fmt.Print(help.GenerateHelp(targetNode))
+		fmt.Print(help.GenerateHelp(targetNode, a.Translator))
 		return err
 	}
 
@@ -207,7 +236,7 @@ func (a *App) Run() error {
 	}
 
 	if !executed {
-		fmt.Print(help.GenerateHelp(targetNode))
+		fmt.Print(help.GenerateHelp(targetNode, a.Translator))
 	}
 
 	for i := len(path) - 1; i >= 0; i-- {

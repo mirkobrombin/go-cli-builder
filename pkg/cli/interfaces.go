@@ -1,16 +1,16 @@
 package cli
 
-// Runner is the interface that commands must implement to be executed.
+// Runner is an interface for commands that can be run.
 type Runner interface {
 	Run() error
 }
 
-// BeforeRunner is the interface that commands can implement to run logic before execution.
+// BeforeRunner is an interface for commands that run before the main run.
 type BeforeRunner interface {
 	Before() error
 }
 
-// AfterRunner is the interface that commands can implement to run logic after execution.
+// AfterRunner is an interface for commands that run after the main run.
 type AfterRunner interface {
 	After() error
 }
