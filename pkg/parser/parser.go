@@ -180,6 +180,21 @@ func ParseStruct(node *CommandNode, val reflect.Value) error {
 			continue
 		}
 
+		if flagTag, ok := field.Tag.Lookup("flag"); ok {
+			meta := parseFlagTag(flagTag, fieldVal)
+
+			name := meta.Name
+			if name == "" {
+				name = strings.ToLower(field.Name)
+			}
+
+			node.Flags[name] = meta
+			if meta.Short != "" {
+				node.ShortFlags[meta.Short] = name
+			}
+			continue
+		}
+
 		if _, ok := field.Tag.Lookup("arg"); ok {
 			required := false
 			if reqTag, ok := field.Tag.Lookup("required"); ok && reqTag == "true" {
@@ -200,4 +215,27 @@ func ParseStruct(node *CommandNode, val reflect.Value) error {
 		}
 	}
 	return nil
+}
+
+// parseFlagTag parses the flag:"short:x, long:y, name:z" format.
+func parseFlagTag(tag string, fieldVal reflect.Value) *FlagMetadata {
+	meta := &FlagMetadata{Field: fieldVal}
+
+	parts := strings.Split(tag, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if kv := strings.SplitN(part, ":", 2); len(kv) == 2 {
+			key := strings.TrimSpace(kv[0])
+			val := strings.TrimSpace(kv[1])
+			switch key {
+			case "short":
+				meta.Short = val
+			case "long":
+				meta.Name = val
+			case "name":
+				meta.Description = val
+			}
+		}
+	}
+	return meta
 }
