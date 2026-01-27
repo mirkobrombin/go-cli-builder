@@ -8,10 +8,10 @@ The `Logger` follows this interface:
 
 ```go
 type Logger interface {
-    Info(format string, a ...interface{})
-    Success(format string, a ...interface{})
-    Warning(format string, a ...interface{})
-    Error(format string, a ...interface{})
+    Info(format string, a ...any)
+    Success(format string, a ...any)
+    Warning(format string, a ...any)
+    Error(format string, a ...any)
 }
 ```
 

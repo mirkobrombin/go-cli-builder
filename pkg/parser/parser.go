@@ -4,7 +4,11 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/mirkobrombin/go-foundation/pkg/tags"
 )
+
+var flagTagParser = tags.NewParser("flag", tags.WithPairDelimiter(","), tags.WithKVSeparator(":"))
 
 // Parse parses a struct and returns a CommandNode tree.
 //
@@ -221,21 +225,19 @@ func ParseStruct(node *CommandNode, val reflect.Value) error {
 func parseFlagTag(tag string, fieldVal reflect.Value) *FlagMetadata {
 	meta := &FlagMetadata{Field: fieldVal}
 
-	parts := strings.Split(tag, ",")
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if kv := strings.SplitN(part, ":", 2); len(kv) == 2 {
-			key := strings.TrimSpace(kv[0])
-			val := strings.TrimSpace(kv[1])
-			switch key {
-			case "short":
-				meta.Short = val
-			case "long":
-				meta.Name = val
-			case "name":
-				meta.Description = val
-			}
-		}
+	parsed := flagTagParser.Parse(tag)
+
+	if vals, ok := parsed["short"]; ok && len(vals) > 0 {
+		meta.Short = vals[0]
 	}
+
+	if vals, ok := parsed["long"]; ok && len(vals) > 0 {
+		meta.Name = vals[0]
+	}
+
+	if vals, ok := parsed["name"]; ok && len(vals) > 0 {
+		meta.Description = vals[0]
+	}
+
 	return meta
 }
