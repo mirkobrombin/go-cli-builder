@@ -6,6 +6,8 @@ flags (including short names), aliases and more using struct tags.
 
 ## ⚠️ Migration to V2
 
+> V1 is now deprecated and not supported, please migrate to V2.
+
 **Version 2.0 is a complete rewrite.** It moves from an imperative approach (calling methods to add flags) to a **declarative, code-first approach** (using struct tags). 
 V1 code is **not compatible** with V2. Please refer to the [Basic Usage](#basic-usage) section to see the new pattern.
 
