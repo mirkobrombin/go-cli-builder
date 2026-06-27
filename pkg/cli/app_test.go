@@ -155,12 +155,10 @@ func TestResolveCommand_FlagsFirst(t *testing.T) {
 func TestResolveCommand_UnknownCommand(t *testing.T) {
 	app, _ := New(&testRootCmd{})
 	args := []string{"unknown"}
-	node, _, err := resolveCommand(app.RootNode, args)
-	if err != nil {
-		t.Fatalf("resolveCommand failed: %v", err)
-	}
-	if node.Name != "root" {
-		t.Errorf("got node %q, want %q (root fallback)", node.Name, "root")
+	// A command group must reject an unknown subcommand rather than swallowing
+	// it as a positional and falling back to root help.
+	if _, _, err := resolveCommand(app.RootNode, args); err == nil {
+		t.Fatal("expected error for unknown command, got nil")
 	}
 }
 
@@ -426,7 +424,7 @@ func TestRunFunction(t *testing.T) {
 }
 
 type lifecycleCmd struct {
-	Ran     bool
+	Ran       bool
 	BeforeRan bool
 	AfterRan  bool
 
@@ -449,7 +447,7 @@ func (c *lifecycleCmd) After() error {
 }
 
 type lifecycleSubCmd struct {
-	Ran     bool
+	Ran       bool
 	BeforeRan bool
 	AfterRan  bool
 }
@@ -550,8 +548,8 @@ func TestRun_UnknownCommand(t *testing.T) {
 	defer func() { os.Args = oldArgs }()
 
 	os.Args = []string{"app", "unknown"}
-	if err := Run(&testRootCmd{}); err != nil {
-		t.Errorf("Run with unknown command should print help, got error: %v", err)
+	if err := Run(&testRootCmd{}); err == nil {
+		t.Error("Run with unknown command should return a non-nil error")
 	}
 }
 
@@ -712,4 +710,22 @@ func TestRun_WithoutPanicRecovery(t *testing.T) {
 
 	os.Args = []string{"app"}
 	Run(&panicCmd{})
+}
+
+func TestResolveCommand_PositionalAllowed(t *testing.T) {
+	root := parser.NewCommandNode("app", "", reflect.ValueOf(struct{}{}))
+	leaf := parser.NewCommandNode("greet", "", reflect.ValueOf(struct{}{}))
+	leaf.Args = []*parser.ArgMetadata{{Description: "name"}}
+	root.Children["greet"] = leaf
+
+	n, rem, err := resolveCommand(root, []string{"greet", "alice"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if n.Name != "greet" {
+		t.Fatalf("expected greet node, got %q", n.Name)
+	}
+	if len(rem) != 1 || rem[0] != "alice" {
+		t.Fatalf("expected positional [alice], got %v", rem)
+	}
 }

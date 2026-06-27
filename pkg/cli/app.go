@@ -104,14 +104,14 @@ func applyBindings(node *parser.CommandNode, flags map[string]string, args []str
 
 // App represents a CLI application.
 type App struct {
-	RootNode       *parser.CommandNode
-	Translator     help.Translator
-	Container      *di.Container
-	Validator      *validation.Validator
-	ctx            context.Context
-	version        string
-	mu             sync.Mutex
-	panicRecovery  bool
+	RootNode      *parser.CommandNode
+	Translator    help.Translator
+	Container     *di.Container
+	Validator     *validation.Validator
+	ctx           context.Context
+	version       string
+	mu            sync.Mutex
+	panicRecovery bool
 }
 
 // AppOption is a functional option for App configuration.
@@ -382,6 +382,12 @@ func resolveCommand(root *parser.CommandNode, args []string) (*parser.CommandNod
 				if child, ok := current.Children[arg]; ok {
 					current = child
 				} else {
+					// A command group (has subcommands, takes no positional
+					// args of its own) cannot accept this token: it is an
+					// unknown command, not a positional argument.
+					if len(current.Children) > 0 && len(current.Args) == 0 {
+						return current, remaining, fmt.Errorf("unknown command: %q", arg)
+					}
 					parsingCmds = false
 					remaining = append(remaining, arg)
 				}
