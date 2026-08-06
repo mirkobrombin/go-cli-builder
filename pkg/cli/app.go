@@ -21,7 +21,10 @@ import (
 )
 
 // applyBindings binds flags and args to the struct fields using the external binder library.
-func applyBindings(node *parser.CommandNode, flags map[string]string, args []string, effectiveFlags map[string]*parser.FlagMetadata) error {
+//
+// flags holds every occurrence of each flag in command line order. A scalar
+// field takes the last one, a slice field takes them all.
+func applyBindings(node *parser.CommandNode, flags map[string][]string, args []string, effectiveFlags map[string]*parser.FlagMetadata) error {
 	val := node.Value
 	if val.Kind() != reflect.Ptr && val.CanAddr() {
 		val = val.Addr()
@@ -70,14 +73,27 @@ func applyBindings(node *parser.CommandNode, flags map[string]string, args []str
 					m.Field.Set(s)
 					return nil
 				})
+				break
 			}
+			// Every other kind reflectutil understands, float and uint among
+			// them. Without this a field of one of those types is parsed, is
+			// listed in the help, and then fails to bind.
+			b.AddStrings(name, func(v []string) error {
+				if len(v) == 0 {
+					return nil
+				}
+				return reflectutil.Bind(m.Field, v[0])
+			})
 		}
 	}
 
 	for name, meta := range effectiveFlags {
+		passed := flags[name]
+
 		var passedVal *string
-		if v, ok := flags[name]; ok {
-			passedVal = &v
+		if len(passed) > 0 {
+			last := passed[len(passed)-1]
+			passedVal = &last
 		}
 
 		valToBind, err := resolver.GetValue(passedVal, meta.Env, meta.Default, meta.Field.Kind() == reflect.Bool)
@@ -89,8 +105,13 @@ func applyBindings(node *parser.CommandNode, flags map[string]string, args []str
 			return fmt.Errorf("missing required flag: --%s", name)
 		}
 
+		toBind := []string{valToBind}
+		if meta.Field.Kind() == reflect.Slice && len(passed) > 0 {
+			toBind = passed
+		}
+
 		if valToBind != "" {
-			if err := b.Run(name, []string{valToBind}); err != nil {
+			if err := b.Run(name, toBind); err != nil {
 				return fmt.Errorf("invalid value for flag --%s: %w", name, err)
 			}
 		}
@@ -434,8 +455,11 @@ func getPathToNode(root, target *parser.CommandNode) []*parser.CommandNode {
 }
 
 // parseArgs parses flags based on effective metadata.
-func parseArgs(args []string, effectiveFlags map[string]*parser.FlagMetadata) (map[string]string, []string, error) {
-	flags := make(map[string]string)
+//
+// A flag given more than once keeps every value, in command line order, so a
+// slice field can receive them all.
+func parseArgs(args []string, effectiveFlags map[string]*parser.FlagMetadata) (map[string][]string, []string, error) {
+	flags := make(map[string][]string)
 	positionals := []string{}
 
 	shortMap := make(map[string]string)
@@ -467,13 +491,13 @@ func parseArgs(args []string, effectiveFlags map[string]*parser.FlagMetadata) (m
 			}
 
 			if hasValue {
-				flags[name] = value
+				flags[name] = append(flags[name], value)
 			} else {
 				if meta.Field.Kind() == reflect.Bool {
-					flags[name] = "true"
+					flags[name] = append(flags[name], "true")
 				} else {
 					if i+1 < len(args) {
-						flags[name] = args[i+1]
+						flags[name] = append(flags[name], args[i+1])
 						i++
 					} else {
 						return nil, nil, fmt.Errorf("flag needs an argument: --%s", name)
@@ -511,13 +535,13 @@ func parseArgs(args []string, effectiveFlags map[string]*parser.FlagMetadata) (m
 			meta := effectiveFlags[name]
 
 			if hasValue {
-				flags[name] = value
+				flags[name] = append(flags[name], value)
 			} else {
 				if meta.Field.Kind() == reflect.Bool {
-					flags[name] = "true"
+					flags[name] = append(flags[name], "true")
 				} else {
 					if i+1 < len(args) {
-						flags[name] = args[i+1]
+						flags[name] = append(flags[name], args[i+1])
 						i++
 					} else {
 						return nil, nil, fmt.Errorf("flag needs an argument: -%s", shorthand)

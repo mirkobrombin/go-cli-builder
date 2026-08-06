@@ -177,6 +177,17 @@ func TestResolveCommand_UnknownCommand(t *testing.T) {
 	}
 }
 
+// flagValue returns the one value parsed for name, and fails when the flag was
+// seen any other number of times.
+func flagValue(t *testing.T, parsed map[string][]string, name string) string {
+	t.Helper()
+	v := parsed[name]
+	if len(v) != 1 {
+		t.Fatalf("flag %s: got %d values %v, want 1", name, len(v), v)
+	}
+	return v[0]
+}
+
 func TestParseArgs_LongFlag(t *testing.T) {
 	flags := map[string]*parser.FlagMetadata{
 		"name": {
@@ -188,8 +199,8 @@ func TestParseArgs_LongFlag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseArgs failed: %v", err)
 	}
-	if parsed["name"] != "hello" {
-		t.Errorf("got %q, want %q", parsed["name"], "hello")
+	if flagValue(t, parsed, "name") != "hello" {
+		t.Errorf("got %v, want %q", parsed["name"], "hello")
 	}
 	if len(pos) != 0 {
 		t.Errorf("expected no positional args, got %v", pos)
@@ -207,8 +218,8 @@ func TestParseArgs_LongFlagWithEquals(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseArgs failed: %v", err)
 	}
-	if parsed["name"] != "hello" {
-		t.Errorf("got %q, want %q", parsed["name"], "hello")
+	if flagValue(t, parsed, "name") != "hello" {
+		t.Errorf("got %v, want %q", parsed["name"], "hello")
 	}
 }
 
@@ -228,8 +239,8 @@ func TestParseArgs_ShortFlag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseArgs failed: %v", err)
 	}
-	if parsed["verbose"] != "true" {
-		t.Errorf("got %q, want %q", parsed["verbose"], "true")
+	if flagValue(t, parsed, "verbose") != "true" {
+		t.Errorf("got %v, want %q", parsed["verbose"], "true")
 	}
 }
 
@@ -244,8 +255,8 @@ func TestParseArgs_BoolFlag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseArgs failed: %v", err)
 	}
-	if parsed["verbose"] != "true" {
-		t.Errorf("got %q, want 'true' for bool flag", parsed["verbose"])
+	if flagValue(t, parsed, "verbose") != "true" {
+		t.Errorf("got %q, want 'true' for bool flag", flagValue(t, parsed, "verbose"))
 	}
 }
 
@@ -281,8 +292,8 @@ func TestParseArgs_PositionalArgs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseArgs failed: %v", err)
 	}
-	if parsed["verbose"] != "true" {
-		t.Errorf("expected verbose=true, got %v", parsed["verbose"])
+	if flagValue(t, parsed, "verbose") != "true" {
+		t.Errorf("expected verbose=true, got %v", flagValue(t, parsed, "verbose"))
 	}
 	if len(pos) != 2 || pos[0] != "file1" || pos[1] != "file2" {
 		t.Errorf("expected [file1 file2], got %v", pos)
@@ -749,5 +760,97 @@ func TestResolveCommand_PositionalAllowed(t *testing.T) {
 	}
 	if len(rem) != 1 || rem[0] != "alice" {
 		t.Fatalf("expected positional [alice], got %v", rem)
+	}
+}
+
+type testTypedCmd struct {
+	Threshold float64  `cli:"threshold" default:"0.6" help:"A float"`
+	Ratio     float32  `cli:"ratio" help:"A 32 bit float"`
+	Count     uint     `cli:"count" help:"An unsigned int"`
+	If        []string `cli:"if" help:"A repeatable premise"`
+	Name      string   `cli:"name" help:"A scalar"`
+}
+
+func (c *testTypedCmd) Run() error { return nil }
+
+// bindFlags runs argv through the real parse and bind path.
+func bindFlags(t *testing.T, cmd any, argv []string) {
+	t.Helper()
+	node, err := parser.Parse("root", cmd)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	parsed, pos, err := parseArgs(argv, node.Flags)
+	if err != nil {
+		t.Fatalf("parseArgs: %v", err)
+	}
+	if err := applyBindings(node, parsed, pos, node.Flags); err != nil {
+		t.Fatalf("applyBindings: %v", err)
+	}
+}
+
+// A float or unsigned field used to appear in the help and then fail to bind,
+// because applyBindings registered a handler only for the kinds it named.
+func TestApplyBindings_FloatAndUintFlags(t *testing.T) {
+	cmd := &testTypedCmd{}
+	bindFlags(t, cmd, []string{"--threshold", "0.9", "--ratio", "0.25", "--count", "7"})
+
+	if cmd.Threshold != 0.9 {
+		t.Errorf("threshold: got %v, want 0.9", cmd.Threshold)
+	}
+	if cmd.Ratio != 0.25 {
+		t.Errorf("ratio: got %v, want 0.25", cmd.Ratio)
+	}
+	if cmd.Count != 7 {
+		t.Errorf("count: got %v, want 7", cmd.Count)
+	}
+}
+
+func TestApplyBindings_FloatFlagUsesDefault(t *testing.T) {
+	cmd := &testTypedCmd{}
+	bindFlags(t, cmd, nil)
+
+	if cmd.Threshold != 0.6 {
+		t.Errorf("threshold: got %v, want the declared default 0.6", cmd.Threshold)
+	}
+}
+
+// Repeating a flag used to keep only its last occurrence, which left a slice
+// field unable to ever hold more than one value.
+func TestApplyBindings_RepeatedFlagFillsSlice(t *testing.T) {
+	cmd := &testTypedCmd{}
+	bindFlags(t, cmd, []string{"--if", "a,b,c", "--if", "d,e,f"})
+
+	want := []string{"a,b,c", "d,e,f"}
+	if !reflect.DeepEqual(cmd.If, want) {
+		t.Errorf("if: got %v, want %v", cmd.If, want)
+	}
+}
+
+// A scalar keeps the conventional meaning of a repeated flag: the last wins.
+func TestApplyBindings_RepeatedScalarFlagTakesLast(t *testing.T) {
+	cmd := &testTypedCmd{}
+	bindFlags(t, cmd, []string{"--name", "first", "--name", "second"})
+
+	if cmd.Name != "second" {
+		t.Errorf("name: got %q, want %q", cmd.Name, "second")
+	}
+}
+
+func TestParseArgs_RepeatedFlagKeepsEveryOccurrence(t *testing.T) {
+	flags := map[string]*parser.FlagMetadata{
+		"if": {
+			Name:  "if",
+			Field: reflect.ValueOf([]string{}),
+		},
+	}
+	parsed, _, err := parseArgs([]string{"--if", "one", "--if=two", "--if", "three"}, flags)
+	if err != nil {
+		t.Fatalf("parseArgs failed: %v", err)
+	}
+
+	want := []string{"one", "two", "three"}
+	if !reflect.DeepEqual(parsed["if"], want) {
+		t.Errorf("got %v, want %v", parsed["if"], want)
 	}
 }
