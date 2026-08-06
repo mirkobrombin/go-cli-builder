@@ -5,7 +5,7 @@ In V2, commands are defined as **Go structs**. The library uses reflection and s
 ## Defining a Command
 
 A command is simply a struct that:
-1. (Optional) Embeds `cli.Base` to get access to `Logger` and `Context`.
+1. (Optional) Embeds `cli.Base` to get access to `Logger`, `Context` and the DI `Container`.
 2. (Optional) Implements the `Runner` interface (`Run() error`).
 3. (Optional) Implements lifecycle hooks (`Before() error`, `After() error`).
 4. Defines fields for flags and arguments.

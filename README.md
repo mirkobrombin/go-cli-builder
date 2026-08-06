@@ -1,24 +1,57 @@
-# Go CLI Builder (V2)
+# Go CLI Builder (V3)
 
 A lightweight and flexible **declarative** library for building command-line interfaces (CLIs) 
 in Go. This library provides a simple and intuitive way to define commands, 
 flags (including short names), aliases and more using struct tags.
 
-## ⚠️ Migration to V2
+## Migration to V3
 
-> V1 is now deprecated and not supported, please migrate to V2.
+Update the import path, then apply the table below. `WithValidator` is the only
+call that needs more than a rewrite.
 
-**Version 2.0 is a complete rewrite.** It moves from an imperative approach (calling methods to add flags) to a **declarative, code-first approach** (using struct tags). 
-V1 code is **not compatible** with V2. Please refer to the [Basic Usage](#basic-usage) section to see the new pattern.
+| V2 | V3 |
+|---|---|
+| `import ".../go-cli-builder/v2/..."` | `import ".../go-cli-builder/v3/..."` |
+| `WithContainer(*di.Container)` | `WithContainer(cli.Container)`, satisfied by `*di.Container` as it is |
+| `WithValidator(*validation.Validator)` | `WithValidator(cli.Validator)`, use `cli.ValidatorFunc` to adapt |
+| `Base.Container` is `*di.Container` | `Base.Container` is `cli.Container` |
+| `AppOption = options.Option[App]` | `AppOption func(*App)` |
+| `log.NewFoundationLogger()` | removed, use `cli.WithLogger` with `pkg/log/fdn` |
+
+The types above are declared by this library instead of imported from
+`go-foundation`, so a future major of that library is no longer a breaking
+change here.
+
+### Behaviour changes
+
+- **Command output is readable.** From v2.1.0 the logger emitted one JSON object
+  per line, so `Logger.Info` printed `{"level":"info",...}` to the user and
+  `Logger.Success` was indistinguishable from `Logger.Info`. V3 prints readable,
+  colored lines. Pass `fdn.NewStructured` if a machine reads the output.
+- **Warnings and errors go to stderr.** Informational and success messages stay
+  on stdout, so piping a command's output no longer swallows its errors.
+
+### Adapting the Foundation validator
+
+```go
+v := validation.New()
+cli.Run(app, cli.WithValidator(cli.ValidatorFunc(func(target any) error {
+	if errs := v.Validate(target); len(errs) > 0 {
+		return errs
+	}
+	return nil
+})))
+```
 
 ## Features
 
 - **Declarative Command Definition:** Define commands and flags using struct tags (`cmd`, `cli`, `arg`, `help`).
 - **Type-Safe Flag Handling:** Automatically binds flags to basic types (`int`, `bool`, `string`, `time.Duration`, `[]string`) and structs.
-- **Dependency Injection:** Automatically injects `Logger` and `Context` into your commands via embedding.
+- **Dependency Injection:** Automatically injects `Logger`, `Context` and an optional DI container into your commands via embedding.
 - **Environment Variable Integration:** Map environment variables directly to flags using the `env:"VAR_NAME"` tag.
 - **Built-in Help Generation:** Automatically generates formatted help messages based on your structs and tags.
-- **Customizable Logging:** Includes a built-in logger (`Info`, `Success`, `Warning`, `Error`) available in every command.
+- **Customizable Logging:** A built-in readable logger (`Info`, `Success`, `Warning`, `Error`) in every command, swappable with `WithLogger` for structured output.
+- **Contained Dependencies:** No third party type appears in the public API, so upgrading what runs underneath is not a breaking change for you.
 - **Lifecycle Hooks:** Supports `Before()` and `After()` methods for command initialization and cleanup.
 
 ## Getting Started
@@ -26,7 +59,7 @@ V1 code is **not compatible** with V2. Please refer to the [Basic Usage](#basic-
 ### Installation
 
 ```bash
-go get github.com/mirkobrombin/go-cli-builder/v2
+go get github.com/mirkobrombin/go-cli-builder/v3
 ```
 
 ### Basic Usage
@@ -38,7 +71,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mirkobrombin/go-cli-builder/v2/pkg/cli"
+	"github.com/mirkobrombin/go-cli-builder/v3/pkg/cli"
 )
 
 // Define your root CLI struct
@@ -95,7 +128,7 @@ func main() {
 
 ## Documentation
 
-For more detailed examples, check the `examples/v2` directory.
+For more detailed examples, check the `examples` directory.
 
 ## License
 

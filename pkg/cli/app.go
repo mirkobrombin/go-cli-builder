@@ -11,16 +11,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mirkobrombin/go-cli-builder/v2/internal/binder"
-	"github.com/mirkobrombin/go-cli-builder/v2/pkg/help"
-	"github.com/mirkobrombin/go-cli-builder/v2/pkg/log"
-	"github.com/mirkobrombin/go-cli-builder/v2/pkg/parser"
-	"github.com/mirkobrombin/go-cli-builder/v2/pkg/resolver"
-	"github.com/mirkobrombin/go-foundation/pkg/di"
-	"github.com/mirkobrombin/go-foundation/pkg/errutil"
-	"github.com/mirkobrombin/go-foundation/pkg/options"
-	"github.com/mirkobrombin/go-foundation/pkg/reflectutil"
-	"github.com/mirkobrombin/go-foundation/pkg/validation"
+	"github.com/mirkobrombin/go-cli-builder/v3/internal/binder"
+	"github.com/mirkobrombin/go-cli-builder/v3/pkg/help"
+	"github.com/mirkobrombin/go-cli-builder/v3/pkg/log"
+	"github.com/mirkobrombin/go-cli-builder/v3/pkg/parser"
+	"github.com/mirkobrombin/go-cli-builder/v3/pkg/resolver"
+	"github.com/mirkobrombin/go-foundation/v2/core/errutil"
+	"github.com/mirkobrombin/go-foundation/v2/core/reflectutil"
 )
 
 // applyBindings binds flags and args to the struct fields using the external binder library.
@@ -106,16 +103,17 @@ func applyBindings(node *parser.CommandNode, flags map[string]string, args []str
 type App struct {
 	RootNode      *parser.CommandNode
 	Translator    help.Translator
-	Container     *di.Container
-	Validator     *validation.Validator
+	Container     Container
+	Validator     Validator
 	ctx           context.Context
+	logger        log.Logger
 	version       string
 	mu            sync.Mutex
 	panicRecovery bool
 }
 
 // AppOption is a functional option for App configuration.
-type AppOption = options.Option[App]
+type AppOption func(*App)
 
 // WithVersion sets the application version.
 func WithVersion(v string) AppOption {
@@ -133,13 +131,27 @@ func WithTranslator(tr help.Translator) AppOption {
 }
 
 // WithContainer sets the DI container for dependency injection in commands.
-func WithContainer(container *di.Container) AppOption {
+//
+// Any value satisfying Container is accepted, including *di.Container from
+// go-foundation/v2/app/di.
+func WithContainer(container Container) AppOption {
 	return func(a *App) { a.Container = container }
 }
 
 // WithValidator sets the struct validator for command validation.
-func WithValidator(validator *validation.Validator) AppOption {
+//
+// Use ValidatorFunc to adapt a validator with a different signature.
+func WithValidator(validator Validator) AppOption {
 	return func(a *App) { a.Validator = validator }
+}
+
+// WithLogger sets the logger handed to every command through Base.
+//
+// Without it commands get log.New(), which writes readable lines to the
+// terminal. Pass fdn.NewStructured to emit JSON instead, or fdn.Wrap to reuse
+// a logger the application already built.
+func WithLogger(logger log.Logger) AppOption {
+	return func(a *App) { a.logger = logger }
 }
 
 // WithPanicRecovery enables panic recovery in Run.
@@ -159,7 +171,14 @@ func New(root any, opts ...AppOption) (*App, error) {
 	}
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
 	app := &App{RootNode: rootNode, ctx: ctx}
-	options.Apply(app, opts...)
+	for _, opt := range opts {
+		if opt != nil {
+			opt(app)
+		}
+	}
+	if app.logger == nil {
+		app.logger = log.New()
+	}
 	return app, nil
 }
 
@@ -302,17 +321,17 @@ func (a *App) Run() (runErr error) {
 		if val.Kind() != reflect.Ptr && val.CanAddr() {
 			val = val.Addr()
 		}
-		if errs := a.Validator.Validate(val.Interface()); len(errs) > 0 {
-			for _, e := range errs {
-				fmt.Fprintf(os.Stderr, "validation error: %s\n", e.Error())
-			}
+		if err := a.Validator.Validate(val.Interface()); err != nil {
+			fmt.Fprintf(os.Stderr, "validation error: %s\n", err.Error())
 			fmt.Print(help.GenerateHelp(targetNode, a.Translator))
-			return errutil.Wrap(errs)
+			return errutil.Wrap(err)
 		}
 	}
 
 	for _, node := range path {
-		injectDependencies(node, a.ctx, a.Container)
+		if err := injectDependencies(node, a.ctx, a.logger, a.Container); err != nil {
+			return errutil.Wrap(err)
+		}
 	}
 
 	for _, node := range path {
@@ -545,8 +564,10 @@ func bindArgs(node *parser.CommandNode, args []string) error {
 }
 
 // injectDependencies injects the logger, context and DI container into the command struct if it embeds the Base struct.
-func injectDependencies(node *parser.CommandNode, ctx context.Context, container *di.Container) {
-	logger := log.New()
+func injectDependencies(node *parser.CommandNode, ctx context.Context, logger log.Logger, container Container) error {
+	if logger == nil {
+		logger = log.New()
+	}
 
 	val := node.Value
 	if val.Kind() == reflect.Ptr {
@@ -570,13 +591,25 @@ func injectDependencies(node *parser.CommandNode, ctx context.Context, container
 	}
 
 	if container != nil {
-		injectDIFields(val, container)
+		return injectDIFields(val, container)
 	}
+
+	return nil
 }
 
 // injectDIFields uses the DI container to inject dependencies tagged with `inject`.
-func injectDIFields(val reflect.Value, container *di.Container) {
-	if val.Kind() == reflect.Struct && val.CanAddr() {
-		container.Inject(val.Addr().Interface())
+//
+// A missing or mistyped dependency is reported instead of being swallowed: in
+// Foundation v2 the container answers with an error rather than leaving the
+// field at its zero value.
+func injectDIFields(val reflect.Value, container Container) error {
+	if val.Kind() != reflect.Struct || !val.CanAddr() {
+		return nil
 	}
+
+	if err := container.Inject(val.Addr().Interface()); err != nil {
+		return fmt.Errorf("dependency injection failed: %w", err)
+	}
+
+	return nil
 }

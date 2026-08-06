@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mirkobrombin/go-cli-builder/v2/pkg/parser"
+	"github.com/mirkobrombin/go-cli-builder/v3/pkg/parser"
 )
 
 // GenBashCompletion writes a bash completion script for the app.

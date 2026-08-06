@@ -7,10 +7,25 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/mirkobrombin/go-cli-builder/v2/pkg/parser"
-	"github.com/mirkobrombin/go-foundation/pkg/di"
-	"github.com/mirkobrombin/go-foundation/pkg/validation"
+	"github.com/mirkobrombin/go-cli-builder/v3/pkg/parser"
+	"github.com/mirkobrombin/go-foundation/v2/app/di"
+	"github.com/mirkobrombin/go-foundation/v2/core/validation"
 )
+
+// foundationValidator adapts the Foundation validator to the Validator
+// interface, the way a consumer is expected to.
+func foundationValidator(v *validation.Validator) Validator {
+	return ValidatorFunc(func(target any) error {
+		if errs := v.Validate(target); len(errs) > 0 {
+			return errs
+		}
+		return nil
+	})
+}
+
+// The Foundation container must satisfy the Container interface without an
+// adapter. This assertion fails at compile time if that stops being true.
+var _ Container = (*di.Container)(nil)
 
 var (
 	errBeforeFailed = errors.New("before failed")
@@ -393,9 +408,14 @@ func TestInjectDependencies(t *testing.T) {
 	v := &cmdWithBase{}
 	ctx := context.Background()
 	node := parser.NewCommandNode("test", "", reflect.ValueOf(v))
-	injectDependencies(node, ctx, nil)
+	if err := injectDependencies(node, ctx, nil, nil); err != nil {
+		t.Fatalf("injectDependencies failed: %v", err)
+	}
 	if v.Ctx == nil {
 		t.Error("expected non-nil Ctx after injectDependencies")
+	}
+	if v.Logger == nil {
+		t.Error("expected non-nil Logger after injectDependencies")
 	}
 }
 
@@ -407,7 +427,9 @@ func TestInjectDependencies_NoBase(t *testing.T) {
 	ctx := context.Background()
 	node := parser.NewCommandNode("test", "", reflect.ValueOf(v))
 	originalName := v.Name
-	injectDependencies(node, ctx, nil)
+	if err := injectDependencies(node, ctx, nil, nil); err != nil {
+		t.Fatalf("injectDependencies failed: %v", err)
+	}
 	if v.Name != originalName {
 		t.Errorf("Name should not change: got %q, want %q", v.Name, originalName)
 	}
@@ -643,7 +665,7 @@ func TestNew_WithContainer(t *testing.T) {
 
 func TestNew_WithValidator(t *testing.T) {
 	v := validation.New()
-	app, err := New(&testRootCmd{}, WithValidator(v))
+	app, err := New(&testRootCmd{}, WithValidator(foundationValidator(v)))
 	if err != nil {
 		t.Fatalf("New with validator failed: %v", err)
 	}
@@ -664,7 +686,7 @@ func TestRun_WithValidation(t *testing.T) {
 
 	v := validation.New()
 	os.Args = []string{"app", "--email", "not-an-email"}
-	err := Run(&validationCmd{}, WithValidator(v))
+	err := Run(&validationCmd{}, WithValidator(foundationValidator(v)))
 	if err == nil {
 		t.Error("expected validation error")
 	}
@@ -676,7 +698,7 @@ func TestRun_WithValidationPass(t *testing.T) {
 
 	v := validation.New()
 	os.Args = []string{"app", "--email", "user@example.com"}
-	err := Run(&validationCmd{}, WithValidator(v))
+	err := Run(&validationCmd{}, WithValidator(foundationValidator(v)))
 	if err != nil {
 		t.Errorf("expected no validation error, got: %v", err)
 	}

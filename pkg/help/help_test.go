@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirkobrombin/go-cli-builder/v2/pkg/parser"
+	"github.com/mirkobrombin/go-cli-builder/v3/pkg/parser"
 )
 
 func newTestNode(name, desc string) *parser.CommandNode {

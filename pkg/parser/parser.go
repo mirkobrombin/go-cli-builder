@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/mirkobrombin/go-foundation/pkg/tags"
+	"github.com/mirkobrombin/go-foundation/v2/core/tags"
 )
 
 var flagTagParser = tags.NewParser("flag", tags.WithPairDelimiter(","), tags.WithKVSeparator(":"))

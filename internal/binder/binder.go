@@ -6,7 +6,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/mirkobrombin/go-foundation/pkg/reflectutil"
+	"github.com/mirkobrombin/go-foundation/v2/core/reflectutil"
 )
 
 // HandlerFunc handles binding a set of string arguments to a field.

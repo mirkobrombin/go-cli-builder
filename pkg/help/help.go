@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mirkobrombin/go-cli-builder/v2/pkg/parser"
+	"github.com/mirkobrombin/go-cli-builder/v3/pkg/parser"
 )
 
 // Translator is a function that translates a key.

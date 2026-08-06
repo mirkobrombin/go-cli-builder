@@ -1,7 +1,5 @@
-module github.com/mirkobrombin/go-cli-builder/v2
+module github.com/mirkobrombin/go-cli-builder/v3
 
-go 1.24.0
+go 1.25
 
-toolchain go1.24.4
-
-require github.com/mirkobrombin/go-foundation v1.0.0
+require github.com/mirkobrombin/go-foundation/v2 v2.1.0
