@@ -297,14 +297,15 @@ func (a *App) Run() (runErr error) {
 		maps.Copy(effectiveFlags, node.Flags)
 	}
 
-	for _, arg := range allFlags {
+	for _, arg := range argsBeforeSeparator(allFlags) {
 		if arg == "-h" || arg == "--help" {
 			fmt.Print(help.GenerateHelp(targetNode, a.Translator))
 			return nil
 		}
 	}
 
-	for i, arg := range allFlags {
+	controlArgs := argsBeforeSeparator(allFlags)
+	for i, arg := range controlArgs {
 		if arg == "--version" && a.version != "" {
 			fmt.Println(a.version)
 			return nil
@@ -406,6 +407,15 @@ func (a *App) Run() (runErr error) {
 	return nil
 }
 
+func argsBeforeSeparator(args []string) []string {
+	for i, arg := range args {
+		if arg == "--" {
+			return args[:i]
+		}
+	}
+	return args
+}
+
 // resolveCommand traverses the tree, skipping flags to find subcommands.
 func resolveCommand(root *parser.CommandNode, args []string) (*parser.CommandNode, []string, error) {
 	current := root
@@ -472,6 +482,10 @@ func parseArgs(args []string, effectiveFlags map[string]*parser.FlagMetadata) (m
 	i := 0
 	for i < len(args) {
 		arg := args[i]
+		if arg == "--" {
+			positionals = append(positionals, args[i+1:]...)
+			break
+		}
 
 		if strings.HasPrefix(arg, "--") {
 			name := arg[2:]

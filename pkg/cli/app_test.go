@@ -854,3 +854,28 @@ func TestParseArgs_RepeatedFlagKeepsEveryOccurrence(t *testing.T) {
 		t.Errorf("got %v, want %v", parsed["if"], want)
 	}
 }
+
+func TestParseArgs_SeparatorForwardsFlagsAsPositionals(t *testing.T) {
+	parsed, positionals, err := parseArgs(
+		[]string{"value", "--", "--version", "-v", "a b"},
+		map[string]*parser.FlagMetadata{},
+	)
+	if err != nil {
+		t.Fatalf("parseArgs failed: %v", err)
+	}
+	if len(parsed) != 0 {
+		t.Fatalf("unexpected parsed flags: %v", parsed)
+	}
+	want := []string{"value", "--version", "-v", "a b"}
+	if !reflect.DeepEqual(positionals, want) {
+		t.Fatalf("positionals: got %v, want %v", positionals, want)
+	}
+}
+
+func TestArgsBeforeSeparator(t *testing.T) {
+	args := []string{"run", "origin", "--", "--version"}
+	want := []string{"run", "origin"}
+	if got := argsBeforeSeparator(args); !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
