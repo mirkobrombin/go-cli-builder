@@ -92,7 +92,7 @@ func writeFishCompletions(w io.Writer, node *parser.CommandNode, name string, pa
 			short = fmt.Sprintf("-s %s", meta.Short)
 		}
 		_, err := fmt.Fprintf(w, "complete -c %s -n '__fish_seen_subcommand_from %s' -l %s %s -d '%s'\n",
-			name, parentPrefix, flagName, short, desc)
+			name, parentPrefix, flagName, short, escapeFishSingleQuoted(desc))
 		if err != nil {
 			return err
 		}
@@ -109,7 +109,7 @@ func writeFishCompletions(w io.Writer, node *parser.CommandNode, name string, pa
 		newPrefix += childName
 
 		_, err := fmt.Fprintf(w, "complete -c %s -n '__fish_seen_subcommand_from %s' -a %s -d '%s'\n",
-			name, parentPrefix, childName, child.Description)
+			name, parentPrefix, childName, escapeFishSingleQuoted(child.Description))
 		if err != nil {
 			return err
 		}
@@ -119,4 +119,11 @@ func writeFishCompletions(w io.Writer, node *parser.CommandNode, name string, pa
 		}
 	}
 	return nil
+}
+
+// escapeFishSingleQuoted makes s safe to place between single quotes in
+// fish-shell
+func escapeFishSingleQuoted(s string) string {
+	var fishSingleQuoteEscaper = strings.NewReplacer(`\`, `\\`, `'`, `\'`)
+	return fishSingleQuoteEscaper.Replace(s)
 }
