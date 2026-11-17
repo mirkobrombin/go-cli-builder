@@ -109,6 +109,10 @@ func (c *RemoveCmd) Run() error {
 
 // ListCmd lists all items.
 type ListCmd struct {
+	SubCommand ListSubCmd `cmd:"sub" help:"A sub-command that does nothing"`
+	SubCommand2 ListSubCmd `cmd:"foo" help:"A sub-command that does nothing"`
+	SubCommand3 ListSubCmd `cmd:"bar" help:"A sub-command that does nothing"`
+
 	cli.Base
 }
 
@@ -125,6 +129,16 @@ func (c *ListCmd) Run() error {
 	for _, item := range items {
 		fmt.Printf("- %s\n", item)
 	}
+	return nil
+}
+
+// ListCmd lists all items.
+type ListSubCmd struct {
+	cli.Base
+}
+
+func (c *ListSubCmd) Run() error {
+	c.Logger.Info("I am a sub-command for 'list'")
 	return nil
 }
 
